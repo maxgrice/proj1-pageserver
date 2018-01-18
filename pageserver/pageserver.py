@@ -22,6 +22,10 @@ log = logging.getLogger(__name__)
 
 import socket    # Basic TCP/IP communication on the internet
 import _thread   # Response computation runs concurrently with main program
+import os # used to check if file exists
+import sys
+sys.path.append("../proj1-pageserver/spew")
+import spew
 
 
 def listen(portnum):
@@ -63,17 +67,12 @@ def serve(sock, func):
 # Starter version only serves cat pictures. In fact, only a
 # particular cat picture.  This one.
 ##
-CAT = """
-     ^ ^
-   =(   )=
-"""
-
 # HTTP response codes, as the strings we will actually send.
 # See:  https://en.wikipedia.org/wiki/List_of_HTTP_status_codes
 # or    http://www.w3.org/Protocols/rfc2616/rfc2616-sec10.html
 ##
 STATUS_OK = "HTTP/1.0 200 OK\n\n"
-STATUS_FORBIDDEN = "HTTP/1.0 403 Forbidden\n\n"
+STATUS_FORBIDDEN = "HTTP/1.0 403 Forbidden\n\n" # http error code
 STATUS_NOT_FOUND = "HTTP/1.0 404 Not Found\n\n"
 STATUS_NOT_IMPLEMENTED = "HTTP/1.0 401 Not Implemented\n\n"
 
@@ -89,11 +88,27 @@ def respond(sock):
     log.info("--- Received request ----")
     log.info("Request was {}\n***\n".format(request))
 
-    parts = request.split()
-    if len(parts) > 1 and parts[0] == "GET":
-        transmit(STATUS_OK, sock)
-        transmit(CAT, sock)
-    else:
+    parts = request.split() # splits request into a series of strings based on spaces
+    if len(parts) > 1 and parts[0] == "GET": 
+        file_path = "pages" + parts[1] # should give path/page.html
+        request = parts[1]
+        log.info("File Path is {}\n***\n".format(file_path))
+
+        if request.find("//")!=-1 or request.find("~")!=-1 or request.find("..")!=-1:
+            transmit(STATUS_FORBIDDEN, sock)
+ 
+        else:        
+            if os.path.isfile(file_path):
+                transmit(STATUS_OK, sock)
+                spew.spew(file_path)
+                f = open(file_path, "r")
+                contents = f.read()
+                transmit(contents, sock)
+                f.close()
+            else:
+	            transmit(STATUS_NOT_FOUND, sock)
+	    
+    else: 
         log.info("Unhandled request: {}".format(request))
         transmit(STATUS_NOT_IMPLEMENTED, sock)
         transmit("\nI don't handle this request: {}\n".format(request), sock)
@@ -146,5 +161,7 @@ def main():
     serve(sock, respond)
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # kill all python command to quit
     main()
+
+# curl -v localhost:5000/trivia.html
